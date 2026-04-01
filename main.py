@@ -2504,20 +2504,26 @@ if __name__ == "__main__":
     ROOM_ID = "6852b18fcf853a199d7c1671"
     TOKEN = "58011b371aadbf663fff9bc06e0ab10cb568b2b042750208a549953e8591f631"
 
-    # --- Keep Alive Server ---
+    # Keep Alive - يمنع Render من إيقاف البوت
     import threading
+    import os
     from flask import Flask
-    flask_app = Flask(__name__)
 
-    @flask_app.route("/")
+    keep_alive_app = Flask(__name__)
+
+    @keep_alive_app.route("/")
     def home():
         return "Bot is running!", 200
 
-    def run_flask():
-        flask_app.run(host="0.0.0.0", port=10000)
+    def run_server():
+        port = int(os.environ.get("PORT", 10000))
+        keep_alive_app.run(host="0.0.0.0", port=port)
 
-    threading.Thread(target=run_flask, daemon=True).start()
-    # -------------------------
+    server_thread = threading.Thread(target=run_server)
+    server_thread.daemon = True
+    server_thread.start()
+    print("Keep-alive server started")
+    # --------------------------------
 
     async def run_forever():
         while True:
