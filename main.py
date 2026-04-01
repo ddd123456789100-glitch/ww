@@ -2503,8 +2503,38 @@ floors - استعراض الطوابق
 if __name__ == "__main__":
     ROOM_ID = "6852b18fcf853a199d7c1671"
     TOKEN = "58011b371aadbf663fff9bc06e0ab10cb568b2b042750208a549953e8591f631"
-    
+
+    # --- Keep Alive (يمنع Render من إيقاف البوت) ---
+    from aiohttp import web
+    import aiohttp
+
+    async def handle(request):
+        return web.Response(text="Bot is running!")
+
+    async def keep_alive_server():
+        app = web.Application()
+        app.router.add_get("/", handle)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", 8080)
+        await site.start()
+        print("Keep-alive server running on port 8080")
+
+    async def ping_self():
+        await asyncio.sleep(60)
+        while True:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    await session.get("http://localhost:8080/")
+                    print("Ping sent - bot is alive")
+            except Exception as e:
+                print(f"Ping error: {e}")
+            await asyncio.sleep(600)  # كل 10 دقائق
+    # -------------------------------------------------
+
     async def run_forever():
+        await keep_alive_server()
+        asyncio.create_task(ping_self())
         while True:
             try:
                 definitions = [BotDefinition(MyBot(), ROOM_ID, TOKEN)]
