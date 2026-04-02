@@ -2504,9 +2504,10 @@ if __name__ == "__main__":
     ROOM_ID = "6852b18fcf853a199d7c1671"
     TOKEN = "58011b371aadbf663fff9bc06e0ab10cb568b2b042750208a549953e8591f631"
 
-    # Keep Alive - يمنع Render من إيقاف البوت
-    import threading
-    import os
+    # ═══════════════════════════════════════════════
+    # Keep Alive Server
+    # ═══════════════════════════════════════════════
+    import threading, os
     from flask import Flask
 
     keep_alive_app = Flask(__name__)
@@ -2523,16 +2524,51 @@ if __name__ == "__main__":
     server_thread.daemon = True
     server_thread.start()
     print("Keep-alive server started")
-    # --------------------------------
 
+    # ═══════════════════════════════════════════════
+    # Watchdog — يكتشف انقطاع WebSocket الصامت
+    # ═══════════════════════════════════════════════
+    _last_event = {"time": 0, "connected": False}
+
+    async def watchdog(stop_event: asyncio.Event):
+        await asyncio.sleep(60)
+        while not stop_event.is_set():
+            now = asyncio.get_event_loop().time()
+            if _last_event["connected"] and (now - _last_event["time"]) > 300:
+                print("Watchdog: انقطاع صامت — إعادة الاتصال...")
+                stop_event.set()
+            await asyncio.sleep(60)
+
+    # ═══════════════════════════════════════════════
+    # الحلقة الرئيسية
+    # ═══════════════════════════════════════════════
     async def run_forever():
         while True:
             try:
+                stop_event = asyncio.Event()
+                _last_event["connected"] = True
+                _last_event["time"] = asyncio.get_event_loop().time()
+                print("جاري الاتصال بـ Highrise...")
                 definitions = [BotDefinition(MyBot(), ROOM_ID, TOKEN)]
-                await main(definitions)
+                bot_task = asyncio.create_task(main(definitions))
+                watch_task = asyncio.create_task(watchdog(stop_event))
+                # انتظر أول مهمة تنتهي
+                done, pending = await asyncio.wait(
+                    [bot_task, watch_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                # أوقف المهام الباقية
+                for t in pending:
+                    t.cancel()
+                    try:
+                        await t
+                    except asyncio.CancelledError:
+                        pass
             except Exception as e:
-                print(f"Bot error: {e}. Restarting in 5s...")
-                await asyncio.sleep(5)
+                print(f"Bot error: {e}")
+            _last_event["connected"] = False
+            print("إعادة الاتصال خلال 5 ثوانٍ...")
+            await asyncio.sleep(5)
 
     try:
         asyncio.run(run_forever())
